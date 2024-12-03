@@ -1,5 +1,7 @@
 # MultiversX Winter Challenges 2023-2024
 
+[See the official challenge page here](https://multiversx.notion.site/multiversx-winter-coding-challenge)
+
 This repository contains my solutions for the MultiversX Winter Challenges running from December 3rd, 2023 to January 9th, 2024. This coding challenge series aims to help developers improve their skills while competing with others in the MultiversX ecosystem.
 
 ## Challenges
