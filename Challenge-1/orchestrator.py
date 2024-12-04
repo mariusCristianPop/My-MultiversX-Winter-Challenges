@@ -109,12 +109,53 @@ class ShardWalletOrchestrator:
         self.accounts: Dict[int, List[Account]] = {i: [] for i in range(config.network.num_shards)}
 
     def generate_accounts(self):
-        for target_shard in range(self.config.network.num_shards):
-            while len(self.accounts[target_shard]) < self.config.num_accounts_per_shard:
-                account = self.wallet_generator.generate_account()
-                if account.shard == target_shard:
-                    self.accounts[target_shard].append(account)
-                    self._log_account_generation(account)
+        """
+        Generates accounts distributed across shards more efficiently by:
+        1. Tracking needed accounts per shard
+        2. Using all valid generated accounts
+        3. Only generating until requirements are met
+        4. Cleaning up unused accounts
+        """
+        # Track how many accounts we still need for each shard
+        needed_per_shard = {
+            shard: self.config.num_accounts_per_shard
+            for shard in range(self.config.network.num_shards)
+        }
+
+        # Keep generating until we have enough accounts for all shards
+        while any(needed > 0 for needed in needed_per_shard.values()):
+            account = self.wallet_generator.generate_account()
+            shard = account.shard
+
+            # If we still need accounts for this shard, keep it
+            if needed_per_shard[shard] > 0:
+                self.accounts[shard].append(account)
+                needed_per_shard[shard] -= 1
+                self._log_account_generation(account)
+
+                # Log progress when each shard is completed
+                if needed_per_shard[shard] == 0:
+                    self.logger.info(f"Completed account generation for shard {shard}")
+            else:
+                # Clean up files for unused account
+                try:
+                    if Path(account.wallet_file).exists():
+                        Path(account.wallet_file).unlink()
+                    if Path(account.pem_file).exists():
+                        Path(account.pem_file).unlink()
+                    self.logger.debug(f"Cleaned up unused account files for shard {shard}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to clean up unused account files: {str(e)}")
+
+        # Log final statistics
+        total_accounts = sum(len(accounts) for accounts in self.accounts.values())
+        discarded = len([p for p in self.config.output_dir.glob("wallet_*")] +
+                    [p for p in self.config.output_dir.glob("*.pem")]) - total_accounts
+        self.logger.info(
+            f"Account generation complete. Created {total_accounts} accounts "
+            f"across {self.config.network.num_shards} shards. "
+            f"Discarded {discarded} accounts that didn't match needed shards."
+        )
 
     def fund_accounts(self):
         for accounts in self.accounts.values():

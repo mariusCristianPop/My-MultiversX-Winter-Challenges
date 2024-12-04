@@ -22,6 +22,7 @@ MANIFEST
 
 # Virtual Environments
 venv/
+venvc2/
 .env
 .venv
 env/
@@ -46,3 +47,4 @@ data/
 logs/
 output/
 devnet_wallets/
+devnet_wallets_submitted/
