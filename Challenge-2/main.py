@@ -79,6 +79,30 @@ def create_token_issuance_transaction(
         data=data.encode()
     )
 
+def check_devnet_wallets_directory(base_path: Path):
+    """
+    Check if the devnet_wallets directory exists and contains required files.
+    Raises FileNotFoundError if directory or required files are missing.
+    """
+    if not base_path.exists():
+        raise FileNotFoundError(
+            f"Required directory '{base_path}' not found! "
+            "Please ensure the devnet_wallets directory exists in the current working directory."
+        )
+
+    if not base_path.is_dir():
+        raise NotADirectoryError(
+            f"'{base_path}' exists but is not a directory! "
+            "Please ensure devnet_wallets is a proper directory."
+        )
+
+    accounts_info_path = base_path / "accounts_info.json"
+    if not accounts_info_path.exists():
+        raise FileNotFoundError(
+            f"Required file 'accounts_info.json' not found in {base_path}! "
+            "Please ensure the accounts information file exists."
+        )
+
 def load_accounts_from_json(base_path: Path) -> list:
     """
     Load all account details from the accounts info JSON file
@@ -88,18 +112,40 @@ def load_accounts_from_json(base_path: Path) -> list:
 
     Returns:
         list: List of dictionaries containing account addresses and PEM file paths
+
+    Raises:
+        FileNotFoundError: If directory or required files are missing
+        json.JSONDecodeError: If accounts_info.json is invalid
     """
+    # First check if directory exists and is properly structured
+    check_devnet_wallets_directory(base_path)
+
     # Read the accounts_info.json from devnet_wallets directory
     json_path = base_path / "accounts_info.json"
 
-    with open(json_path, 'r') as f:
-        data = json.load(f)
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise json.JSONDecodeError(
+            f"Failed to parse accounts_info.json: {str(e)}. "
+            "Please ensure the file contains valid JSON data.",
+            e.doc,
+            e.pos
+        )
 
     accounts = []
     for shard in ['shard_0', 'shard_1', 'shard_2']:
         for account in data[shard]:
             # Convert Windows-style paths to proper Path objects
             pem_file_path = base_path / account['pem_file'].replace('devnet_wallets\\', '')
+
+            # Verify PEM file exists
+            if not pem_file_path.exists():
+                raise FileNotFoundError(
+                    f"PEM file not found: {pem_file_path}\n"
+                    "Please ensure all referenced PEM files exist in the devnet_wallets directory."
+                )
 
             accounts.append({
                 'address': account['address'],
